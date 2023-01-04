@@ -6,89 +6,56 @@ import asyncio
 import typing_extensions
 import os
 
+from anime_search import EpisodeSearch
+from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX
+
 downloader = RawDownloader()
 
-def b():
-    PREFIX = 'https://nyaa.si/?f=0&c=1_4&s=seeders&o=desc&q='
-    anime = 'Bocchi'
+def start(anime: str):
+    episodeSearch = EpisodeSearch()
+    episodes = episodeSearch.search(anime)
+    episodes = [e for e in episodes if re.match(EPISODE_REGEX_POSTFIX, e.remote_file_name) ]
 
-    url = PREFIX + anime
-    print(url)
-
-    response = requests.get(url)
-    
-    REGEX = r"href=\"(\/view\/[^\"]+?)\" title=\"([^\"]+?)\"(?:.|[\n\r ])+?(magnet:[^\"]+)(?:.|[\n\r ])+?text-center(?:.|[\n\r ])+?text-center(?:.|[\n\r ])+?text-center\">(\d+)"
-
-    matches = re.findall(REGEX, response.text)
-
-    files = [match[1] for match in matches]
-    magnets = [match[2] for match in matches]
-    seeders = [match[3] for match in matches]
-
-    EPISODE_REGEX_POSTFIX = r".+?-\s*(\d+)\s*"
-    EPISODE_REGEX = f'{anime}{EPISODE_REGEX_POSTFIX}'
-
-    episodes = []
-    for file, magnet, seeders in zip(files, magnets, seeders):
-        episode = re.findall(EPISODE_REGEX, file)
-        if len(episode) > 0:
-            episodes.append({
-                'file': file,
-                'episode': episode[0],
-                'magnet': magnet,
-                'seeders': seeders,
-            })
-
-    download_coroutines: list[typing_extensions.Coroutine[typing_extensions.Any, typing_extensions.Any, None]] = []
-    downloads_per_episode = 3
-    episode_downloads = {}
-    zero_seeders_by_episode = {}
+    tag = '[Ohys-Raws]'
     for episode in episodes:
-        ep_num = episode['episode']
-        seeders = episode['seeders']
-        
-        if seeders == '0':
-            if ep_num not in zero_seeders_by_episode:
-                zero_seeders_by_episode[ep_num] = []
-            zero_seeders_by_episode[ep_num].append(episode)
+        if tag in episode.remote_file_name:
+            episode.tag = tag
+    
+    episode_group = EpisodeGroup.from_episodes(anime, tag, episodes)
+
+    print(f'Found {len(episode_group.episodes)} episodes')
+    for episode in episode_group.episodes:
+        print(f'Tag: {episode.tag}, Episode: {episode.episode}, Seeders: {episode.seeders}')
+        print(f'File: {episode.remote_file_name}')
+        print(f'Magnet: {episode.magnet}')
+        print()
+
+        cwd = os.getcwd()
+        save_path = f'{cwd}/output/{anime}/{episode.episode}'
+
+        if episode.seeders == '0':
+            print(f'No seeders for {episode}')
             continue
 
-        if ep_num not in episode_downloads:
-            episode_downloads[ep_num] = 0
+        downloader.download(episode.magnet, save_path)
 
-        episode_downloads[ep_num] += 1
-            
-        if episode_downloads[ep_num] >= downloads_per_episode:
-            continue
-
-        async def download_with_timeout(episode: dict, anime: str):
-            cwd = os.getcwd()
-            save_file = f'{cwd}/output/{anime}/{episode["episode"]}'
-            async def download(episode: dict, anime: str):
-                print(f"Downloading {episode['episode']} from {episode['file']}")
-                downloader.download(episode['magnet'], save_file)
-
-            # Wait for download to finish, or timeout after 10 seconds
-            try:
-                await asyncio.wait_for(download(episode, anime), timeout=10)
-            except asyncio.TimeoutError:
-                print(f"Timed out downloading {episode['episode']} from {episode['file']}")
-                pass
-            
-        cr = download_with_timeout(episode, anime)
-        download_coroutines.append(cr)
-            
     # Wait for all download coroutines to finish
     async def download_all():
-        await asyncio.gather(*download_coroutines)
+        print("Waiting for downloads to finish...")
         while downloader.is_downloading():
-            print("Waiting for downloads to finish...")
             await asyncio.sleep(1)
+            print("Still downloading...")
+            torrents = downloader._client.torrents(filter='downloading')
+             
+            a = { torrent['name']: f'{torrent["progress"]*100:.2f}%' for torrent in torrents }
+
+            for name, progress in sorted(a.items(), key=lambda x: x[0], reverse=True):
+                print(f'{progress}\t\t{name}')
+
         print("Finished downloading all episodes")
 
     asyncio.run(download_all())
 if __name__ == "__main__":
-    print("Hello World")
-    b()
+    start(input('Anime: '))
 
     pass
