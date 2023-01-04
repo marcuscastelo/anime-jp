@@ -6,10 +6,6 @@ import asyncio
 import typing_extensions
 import os
 
-def a():
-    magnetUrl = r"magnet:?xt=urn:btih:d61c485e0d85d448524db9b267bded648c738f26&amp;dn=%F0%9F%8C%B8Bocchi%20%E6%89%B9%E8%A9%95%E5%BA%A7%E8%AB%87%E4%BC%9A%E3%80%88%E3%81%BC%E3%81%A3%E3%81%A1%E3%83%BB%E3%81%96%E3%83%BB%E3%82%8D%E3%81%A3%E3%81%8F%EF%BC%81%E3%80%89%20-%20%202022-12-27%2020_00&amp;tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&amp;tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&amp;tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce"
-    RawDownloader().download(magnetUrl)
-
 downloader = RawDownloader()
 
 def b():
@@ -21,32 +17,42 @@ def b():
 
     response = requests.get(url)
     
-    REGEX = r"href=\"(\/view\/[^\"]+?)\" title=\"([^\"]+?)\"(?:.|[\n\r ])+?(magnet:[^\"]+)"
+    REGEX = r"href=\"(\/view\/[^\"]+?)\" title=\"([^\"]+?)\"(?:.|[\n\r ])+?(magnet:[^\"]+)(?:.|[\n\r ])+?text-center(?:.|[\n\r ])+?text-center(?:.|[\n\r ])+?text-center\">(\d+)"
 
     matches = re.findall(REGEX, response.text)
 
     files = [match[1] for match in matches]
     magnets = [match[2] for match in matches]
+    seeders = [match[3] for match in matches]
 
     EPISODE_REGEX_POSTFIX = r".+?-\s*(\d+)\s*"
     EPISODE_REGEX = f'{anime}{EPISODE_REGEX_POSTFIX}'
 
     episodes = []
-    for file, magnet in zip(files, magnets):
+    for file, magnet, seeders in zip(files, magnets, seeders):
         episode = re.findall(EPISODE_REGEX, file)
         if len(episode) > 0:
             episodes.append({
                 'file': file,
                 'episode': episode[0],
-                'magnet': magnet
+                'magnet': magnet,
+                'seeders': seeders,
             })
 
-    
     download_coroutines: list[typing_extensions.Coroutine[typing_extensions.Any, typing_extensions.Any, None]] = []
     downloads_per_episode = 3
     episode_downloads = {}
+    zero_seeders_by_episode = {}
     for episode in episodes:
         ep_num = episode['episode']
+        seeders = episode['seeders']
+        
+        if seeders == '0':
+            if ep_num not in zero_seeders_by_episode:
+                zero_seeders_by_episode[ep_num] = []
+            zero_seeders_by_episode[ep_num].append(episode)
+            continue
+
         if ep_num not in episode_downloads:
             episode_downloads[ep_num] = 0
 
