@@ -8,7 +8,7 @@ import os
 import enlighten
 
 from anime_search import EpisodeSearch
-from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX
+from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX, get_episode_of_filename
 
 downloader = RawDownloader()
 
@@ -122,9 +122,36 @@ def download_subtitles(anime: str) -> str:
 
     return anime
 
+def rename_all(anime_folder: str):
+    subs = [f for f in os.listdir(f'{anime_folder}/subs') ]
+    raws = [f for f in os.listdir(f'{anime_folder}') if f != 'subs' ]
+
+    episode_sub_map = {}
+    for sub in subs:
+        print(f'Getting episode of {sub=}')
+        episode = get_episode_of_filename(sub)
+        episode_sub_map[episode] = sub
+    
+    episode_raw_map = {}
+    for raw in raws:
+        print(f'Getting episode of {raw=}')
+        episode = get_episode_of_filename(raw)
+        episode_raw_map[episode] = raw
+
+    for episode, sub in episode_sub_map.items():
+        if episode not in episode_raw_map:
+            print(f'No raw for episode {episode}')
+            continue
+
+        raw = episode_raw_map[episode]
+        raw_base, raw_ext = os.path.splitext(raw)
+        _, sub_ext = os.path.splitext(sub)
+        os.rename(f'{anime_folder}/{raw}', f'{anime_folder}/{raw_base}.{raw_ext}')
+        os.rename(f'{anime_folder}/subs/{sub}', f'{anime_folder}/subs/{raw_base}.{sub_ext}')
+
 if __name__ == "__main__":
     anime_loose = input('Anime: ') or 'Bocchi'
     anime_from_subs = download_subtitles(anime_loose)
     download_raws(anime_loose, anime_from_subs)
-
+    rename_all(f'output/{anime_from_subs}')
     pass

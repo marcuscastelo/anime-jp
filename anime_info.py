@@ -1,7 +1,18 @@
 from dataclasses import dataclass
 import re
 
-EPISODE_REGEX_POSTFIX = r".+?-\s*(\d+)\s*"
+EPISODE_REGEX_POSTFIX = r".+?(?:-\s*()(\d+)|S(\d+)E(\d+))"
+
+def get_episode_of_filename(filename: str, *, prefix: str = '') -> str:
+    EPISODE_REGEX = f'{prefix}.*?{EPISODE_REGEX_POSTFIX}'
+    episode = re.findall(EPISODE_REGEX, filename)
+    if len(episode) == 0:
+        raise Exception(f'Could not find episode number in {filename}')
+    
+    if episode[0][2] != '':
+        return f'S{episode[0][2]}E{episode[0][3]}'
+    else:
+        return f'S01E{episode[0][1]}'
 
 @dataclass
 class EpisodeDownloadInfo:
@@ -16,13 +27,8 @@ class EpisodeDownloadInfo:
         pass
 
     @property
-    def episode(self) -> int:
-        EPISODE_REGEX = f'{self.anime}.*?{EPISODE_REGEX_POSTFIX}'
-        episode = re.findall(EPISODE_REGEX, self.remote_file_name)
-        if len(episode) == 0:
-            raise Exception(f'Could not find episode number in {self.remote_file_name}')
-
-        return int(episode[0])
+    def episode(self) -> str:
+        return get_episode_of_filename(self.remote_file_name, prefix = self.anime)
     
 @dataclass
 class EpisodeGroup:
