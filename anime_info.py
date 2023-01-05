@@ -17,7 +17,7 @@ class EpisodeDownloadInfo:
 
     @property
     def episode(self) -> int:
-        EPISODE_REGEX = f'{self.anime}{EPISODE_REGEX_POSTFIX}'
+        EPISODE_REGEX = f'{self.anime}.*?{EPISODE_REGEX_POSTFIX}'
         episode = re.findall(EPISODE_REGEX, self.remote_file_name)
         if len(episode) == 0:
             raise Exception(f'Could not find episode number in {self.remote_file_name}')

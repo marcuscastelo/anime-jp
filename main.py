@@ -5,6 +5,7 @@ import json
 import asyncio
 import typing_extensions
 import os
+import enlighten
 
 from anime_search import EpisodeSearch
 from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX
@@ -42,20 +43,31 @@ def start(anime: str):
     # Wait for all download coroutines to finish
     async def download_all():
         print("Waiting for downloads to finish...")
+        downloader._client.force_start('all', True)
+        torrents = downloader._client.torrents(filter='downloading')
+        
+        manager = enlighten.get_manager()
+
+        pbars = {}
         while downloader.is_downloading():
             await asyncio.sleep(1)
-            print("Still downloading...")
-            torrents = downloader._client.torrents(filter='downloading')
+            torrents: list[dict] = downloader._client.torrents(filter='downloading')
              
-            a = { torrent['name']: f'{torrent["progress"]*100:.2f}%' for torrent in torrents }
+            name_progress = { 
+                torrent['name']: f'{torrent["progress"]*100:.2f}%' 
+                for torrent in torrents 
+            }
+            for name, progress in sorted(name_progress.items(), key=lambda x: x[0], reverse=True):
+                if name not in pbars:
+                    pbars[name] = manager.status_bar(
+                        status_format=u'{demo}{fill}{progress} ({elapsed})', unit='%', color='green', demo=name, progress="0", max_value=100)
 
-            for name, progress in sorted(a.items(), key=lambda x: x[0], reverse=True):
-                print(f'{progress}\t\t{name}')
+                pbars[name].update(progress=progress)
 
         print("Finished downloading all episodes")
 
     asyncio.run(download_all())
 if __name__ == "__main__":
-    start(input('Anime: '))
+    start(input('Anime: ') or 'Pop Team')
 
     pass
