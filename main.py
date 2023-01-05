@@ -12,7 +12,7 @@ from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX
 
 downloader = RawDownloader()
 
-def start(anime: str):
+def download_raws(anime: str):
     episodeSearch = EpisodeSearch()
     episodes = episodeSearch.search(anime)
     episodes = [e for e in episodes if re.match(EPISODE_REGEX_POSTFIX, e.remote_file_name) ]
@@ -67,7 +67,55 @@ def start(anime: str):
         print("Finished downloading all episodes")
 
     asyncio.run(download_all())
+
+def download_subtitles(anime: str):
+    body = requests.get('https://kitsunekko.net/dirlist.php?dir=subtitles%2Fjapanese%2F').text
+    # sanitize body to utf-8
+    body = body.encode('ascii', 'ignore').decode('ascii')
+        
+    all_anime = re.findall(r"<tr><td colspan=\"2\"><a href=\"/([^\"]+).+?<strong>([^<]+)", body, re.MULTILINE)
+    all_anime = {str(name): str(url) for url, name in all_anime}
+
+    matching = [name for name in all_anime if anime.lower() in name.lower()]
+
+    if not matching:
+        print(f'Anime {anime} not found')
+        return
+    elif len(matching) > 1:
+        print(f'Found multiple anime for {anime}:')
+        for anime in matching:
+            print(f' - {anime}')
+        return
+    else:
+        print(f'Found anime {anime}')
+    
+    print(f'Assuming "{anime}" is "{matching[0]}"')
+    anime = matching[0]
+
+    url = all_anime[anime]
+    url = f'https://kitsunekko.net/{url}'
+
+    body = requests.get(url).text
+    all_subs = re.findall(r'<tr><td><a href="([^"]+).+?<strong>([^<]+)', body, re.MULTILINE)
+    all_subs = {str(name): str(url) for url, name in all_subs}
+
+    print(f'Found {len(all_subs)} subtitles')
+    for name, url in all_subs.items():
+        print(f' - {name}')
+
+    print(f'Downloading subtitles for {anime}')
+    for name, url in all_subs.items():
+        # download subtitle .srt directly
+        if url.endswith('.srt'):
+            print(f'Downloading {name}')
+            body = requests.get(f'https://kitsunekko.net/{url}').text
+            os.makedirs(f'output/{anime}/subs', exist_ok=True)
+            with open(f'output/{anime}/subs/{name}', 'w') as f:
+                f.write(body)
+
 if __name__ == "__main__":
-    start(input('Anime: ') or 'Pop Team')
+    anime = input('Anime: ') or 'Bocchi'
+    download_raws(anime)
+    download_subtitles(anime)
 
     pass
