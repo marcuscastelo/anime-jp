@@ -12,7 +12,7 @@ from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX
 
 downloader = RawDownloader()
 
-def download_raws(anime: str):
+def download_raws(anime: str, save_name: str = ...):
     episodeSearch = EpisodeSearch()
     episodes = episodeSearch.search(anime)
     episodes = [e for e in episodes if re.match(EPISODE_REGEX_POSTFIX, e.remote_file_name) ]
@@ -32,13 +32,14 @@ def download_raws(anime: str):
         print()
 
         cwd = os.getcwd()
-        save_path = f'{cwd}/output/{anime}/{episode.episode}'
+        save_name = save_name if save_name is not ... else anime
+        save_folder_path = f'{cwd}/output/{save_name}'
 
         if episode.seeders == '0':
             print(f'No seeders for {episode}')
             continue
 
-        downloader.download(episode.magnet, save_path)
+        downloader.download(episode.magnet, save_folder_path)
 
     # Wait for all download coroutines to finish
     async def download_all():
@@ -68,7 +69,8 @@ def download_raws(anime: str):
 
     asyncio.run(download_all())
 
-def download_subtitles(anime: str):
+# Returns the exact name of the anime
+def download_subtitles(anime: str) -> str:
     body = requests.get('https://kitsunekko.net/dirlist.php?dir=subtitles%2Fjapanese%2F').text
     # sanitize body to utf-8
     body = body.encode('ascii', 'ignore').decode('ascii')
@@ -80,12 +82,12 @@ def download_subtitles(anime: str):
 
     if not matching:
         print(f'Anime {anime} not found')
-        return
+        return 'AAAAAAAAAAAAAAAAANOTFOUND'
     elif len(matching) > 1:
         print(f'Found multiple anime for {anime}:')
         for anime in matching:
             print(f' - {anime}')
-        return
+        return 'AAAAAAAAAAAAAAAAANOTFOUND'
     else:
         print(f'Found anime {anime}')
     
@@ -106,16 +108,23 @@ def download_subtitles(anime: str):
     print(f'Downloading subtitles for {anime}')
     for name, url in all_subs.items():
         # download subtitle .srt directly
+        file_path = f'output/{anime}/subs/{name}'
+        if os.path.exists(file_path):
+            print(f'Subtitle {name} already exists, skipping')
+            continue
+
         if url.endswith('.srt'):
             print(f'Downloading {name}')
             body = requests.get(f'https://kitsunekko.net/{url}').text
             os.makedirs(f'output/{anime}/subs', exist_ok=True)
-            with open(f'output/{anime}/subs/{name}', 'w') as f:
+            with open(file_path, 'w') as f:
                 f.write(body)
 
+    return anime
+
 if __name__ == "__main__":
-    anime = input('Anime: ') or 'Bocchi'
-    download_raws(anime)
-    download_subtitles(anime)
+    anime_loose = input('Anime: ') or 'Bocchi'
+    anime_from_subs = download_subtitles(anime_loose)
+    download_raws(anime_loose, anime_from_subs)
 
     pass
