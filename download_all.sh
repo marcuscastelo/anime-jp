@@ -1,0 +1,1 @@
+xargs -d "\n" -I {} sh -c 'echo "{}" | python main.py' <all_anime.txt

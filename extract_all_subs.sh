@@ -1,0 +1,1 @@
+find -wholename "./output/*/subs/*.zip" | xargs -d "\n" -I {} sh -c 'echo "{}"'
