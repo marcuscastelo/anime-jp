@@ -6,6 +6,8 @@ import asyncio
 import typing_extensions
 import os
 import enlighten
+import zipfile
+import io
 
 from anime_search import EpisodeSearch
 from anime_info import EpisodeGroup, EPISODE_REGEX_POSTFIX, get_episode_of_filename
@@ -109,16 +111,27 @@ def download_subtitles(anime: str) -> str:
     for name, url in all_subs.items():
         # download subtitle .srt directly
         file_path = f'output/{anime}/subs/{name}'
-        if os.path.exists(file_path):
+
+        if os.path.exists(file_path) or os.path.exists(f'{file_path}.index'):
             print(f'Subtitle {name} already exists, skipping')
             continue
 
-        if url.endswith('.srt'):
-            print(f'Downloading {name}')
-            body = requests.get(f'https://kitsunekko.net/{url}').text
-            os.makedirs(f'output/{anime}/subs', exist_ok=True)
+        print(f'Downloading {name}')
+        response = requests.get(f'https://kitsunekko.net/{url}')
+        os.makedirs(f'output/{anime}/subs', exist_ok=True)
+
+        if url.endswith('.zip'):
+            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                z.extractall(f'output/{anime}/subs')
+
+            # Create empty .index file to mark that file has been downloaded
+            index_path = f'{file_path}.index'
+            with open(index_path, 'w') as f:
+                f.write('')
+            
+        elif url.endswith('.srt'):
             with open(file_path, 'w') as f:
-                f.write(body)
+                f.write(response.text)
 
     return anime
 
@@ -152,6 +165,6 @@ def rename_all(anime_folder: str):
 if __name__ == "__main__":
     anime_loose = input('Anime: ') or 'Bocchi'
     anime_from_subs = download_subtitles(anime_loose)
-    download_raws(anime_loose, anime_from_subs)
-    rename_all(f'output/{anime_from_subs}')
+    # download_raws(anime_loose, anime_from_subs)
+    # rename_all(f'output/{anime_from_subs}')
     pass
