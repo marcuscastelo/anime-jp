@@ -1,9 +1,9 @@
 use clap::{Parser, ValueEnum};
 use clap::{command, arg};
 
+mod core;
 mod raws;
 mod subs;
-mod core;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum SearchType {

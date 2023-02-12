@@ -142,7 +142,7 @@ mod tests {
     fn test_fuzzy_match_indexers_exact_match_season_1() {
         let mock_anime_list = bocchi_the_mock!();
 
-        let matches = fuzzy_match_indexers("Bocchi the Rock!".to_string(), mock_anime_list);
+        let matches = fuzzy_match_indexers("Bocchi the Rock!", mock_anime_list);
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].name, "Bocchi the Rock!");
         assert_eq!(matches[1].name, "Bocchi the Rock! 2");
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_fetch_best_indexers_for_relife() {
-        let matches = fetch_best_indexers_for("relife".to_string()).unwrap();
+        let matches = fetch_best_indexers_for("relife").unwrap();
         assert!(matches.len() > 2);
         assert_eq!(matches[0].name, "ReLIFE");
         assert_eq!(matches[1].name, "ReLife Kanketsu Hen");
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn test_fuzzy_match_indexers_incomplete_equal_score() {
         let mock_anime_list = bocchi_the_mock!();
-        let matches = fuzzy_match_indexers("Bocchi".to_string(), mock_anime_list);
+        let matches = fuzzy_match_indexers("Bocchi", mock_anime_list);
         assert_eq!(matches.len(), 2);
         assert_eq!(matches[0].name, "Bocchi the Rock!");
         assert_eq!(matches[1].name, "Bocchi the Rock! 2");
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn test_fuzzy_match_indexers_incomplete_better_score_exclusive() {
         let mock_anime_list = bocchi_the_mock!();
-        let matches = fuzzy_match_indexers("Bocchi 2".to_string(), mock_anime_list);
+        let matches = fuzzy_match_indexers("Bocchi 2", mock_anime_list);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].name, "Bocchi the Rock! 2");
     }
