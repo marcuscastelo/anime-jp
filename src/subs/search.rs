@@ -5,21 +5,6 @@ use regex::Regex;
 use std::collections::LinkedList;
 use thiserror::Error;
 
-#[derive(Debug)]
-pub struct AnimeRawSearchResult {
-    pub anime_name: String,
-    pub anime_raw_magnet: String,
-}
-
-macro_rules! create_anime_sub_query_url {
-    ($anime_name: expr) => {
-        format!(
-            "https://nyaa.si/?f=0&c=1_4&q={}&s=seeders&o=desc",
-            $anime_name
-        )
-    };
-}
-
 lazy_static! {
     static ref MAGNET_REGEX: Regex = match Regex::new(
         r#"(?m)href="(/view/[^"]+?)" title="([^"]+?)"(?:.|[\n\r ])+?(magnet:[^"]+)(?:.|[\n\r ])+?text-center(?:.|[\n\r ])+?text-center(?:.|[\n\r ])+?text-center">(\d+)"#,
