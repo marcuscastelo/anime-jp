@@ -2,8 +2,10 @@ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lazy_static::lazy_static;
 use priority_queue::PriorityQueue;
 use regex::Regex;
-use std::collections::LinkedList;
+use std::{collections::LinkedList, error::Error};
 use thiserror::Error;
+
+use crate::core::scrapper::{self, HttpScrapper};
 
 lazy_static! {
     static ref MAGNET_REGEX: Regex = match Regex::new(
@@ -26,38 +28,29 @@ pub struct AnimeIndexer {
     pub url: String,
 }
 
-pub fn fetch_indexers() -> Result<LinkedList<AnimeIndexer>, ResponseParsingError> {
-    const ANIME_LIST_URL: &str = "https://kitsunekko.net/dirlist.php?dir=subtitles%2Fjapanese%2F";
-    let regex = Regex::new(r#"<tr><td colspan="2"><a href="/([^"]+).+?<strong>([^<]+)"#).unwrap();
-    let response_text = reqwest::blocking::get(ANIME_LIST_URL)
-        .unwrap()
-        .text()
-        .unwrap();
-
-    let mut anime_list = LinkedList::new();
-    for capture in regex.captures_iter(&response_text) {
-        if capture.len() != 3 {
-            return Err(ResponseParsingError::RegexCaptureCountMismatch(
-                3,
-                capture.len(),
-            ));
-        }
-
-        let anime_url = format!("https://kitsunekko.net/{}", capture[1].to_string());
-        let anime_name = capture[2].to_string();
-        anime_list.push_back(AnimeIndexer {
-            name: anime_name,
-            url: anime_url,
-        });
+impl scrapper::ScrapperData for AnimeIndexer {
+    fn from_captures(capture: regex::CaptureMatches) -> Vec<Self>
+    where
+        Self: Sized,
+    {
+        capture
+            .map(|capture| {
+                let name = capture[2].to_string();
+                let url = format!("https://kitsunekko.net/{}", capture[1].to_string());
+                AnimeIndexer { name, url }
+            })
+            .collect()
     }
-
-    return Ok(anime_list);
 }
 
-pub fn fuzzy_match_indexers(
-    anime_name: &str,
-    indexes: LinkedList<AnimeIndexer>,
-) -> Vec<AnimeIndexer> {
+pub fn fetch_indexers() -> Result<Vec<AnimeIndexer>, Box<dyn Error>> {
+    const ANIME_LIST_URL: &str = "https://kitsunekko.net/dirlist.php?dir=subtitles%2Fjapanese%2F";
+    let regex = Regex::new(r#"<tr><td colspan="2"><a href="/([^"]+).+?<strong>([^<]+)"#).unwrap();
+
+    return HttpScrapper::<AnimeIndexer>::new(regex).scrap_page(ANIME_LIST_URL);
+}
+
+pub fn fuzzy_match_indexers(anime_name: &str, indexes: Vec<AnimeIndexer>) -> Vec<AnimeIndexer> {
     let matcher = SkimMatcherV2::default();
     let mut matches = PriorityQueue::new();
     for index in indexes {
@@ -82,7 +75,7 @@ pub fn fuzzy_match_indexers(
 
 pub fn fetch_best_indexers_for(
     anime_name: &str,
-) -> Result<Vec<AnimeIndexer>, ResponseParsingError> {
+) -> Result<Vec<AnimeIndexer>, Box<dyn Error>> {
     let indexers = fetch_indexers()?;
     let sorted_indexers = fuzzy_match_indexers(anime_name, indexers);
     return Ok(sorted_indexers);
@@ -94,7 +87,7 @@ mod tests {
 
     macro_rules! bocchi_the_mock {
         () => {
-            LinkedList::from_iter(vec![
+            vec![
                 AnimeIndexer {
                     name: "Bocchi the Rock! 2".to_string(),
                     url: "https://kitsunekko.net/bocchi-the-rock-2".to_string(),
@@ -103,16 +96,16 @@ mod tests {
                     name: "Bocchi the Rock!".to_string(),
                     url: "https://kitsunekko.net/bocchi-the-rock".to_string(),
                 },
-            ])
+            ]
         };
-    } 
+    }
 
     #[test]
     fn test_fetch_indexers() {
         let anime_list = fetch_indexers().unwrap();
         assert!(anime_list.len() > 0);
-        assert!(anime_list.front().unwrap().name.len() > 0);
-        assert!(anime_list.front().unwrap().url.len() > 0);
+        assert!(anime_list.get(0).unwrap().name.len() > 0);
+        assert!(anime_list.get(0).unwrap().url.len() > 0);
 
         let contains_bocchi = anime_list
             .iter()

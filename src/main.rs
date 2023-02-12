@@ -30,7 +30,7 @@ fn main() {
     println!("Args: {:#?}", args);
 
     if args.search_type == SearchType::Raw || args.search_type == SearchType::Both {
-        let result = raws::search::search_anime_raw(args.anime_name.as_str());
+        let result = raws::search::search_anime_raws(args.anime_name.as_str());
         println!("Search RAW Result: {:#?}", result);
     }
 

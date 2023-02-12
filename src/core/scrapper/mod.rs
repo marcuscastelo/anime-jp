@@ -10,26 +10,26 @@ pub struct HttpScrapper<T> where T: ScrapperData {
 }
 
 impl<T> HttpScrapper<T> where T: ScrapperData {
-    fn new(inner_regex: Regex) -> Self {
+    pub fn new(inner_regex: Regex) -> Self {
         HttpScrapper { 
             inner_regex,
             _phantom: std::marker::PhantomData,
          }
     }
 
-    fn fetch_raw_data(&self, uri: &str) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn fetch_raw_data(&self, uri: &str) -> Result<String, Box<dyn std::error::Error>> {
         let response = reqwest::blocking::get(uri)?;
         let response_text = response.text()?;
         Ok(response_text)
     }
 
-    fn scrap_raw_data(&self, data: &str) -> Result<Vec<T>, Box<dyn std::error::Error>> {
+    pub fn scrap_raw_data(&self, data: &str) -> Result<Vec<T>, Box<dyn std::error::Error>> {
         let capture_matches = self.inner_regex.captures_iter(&data);
         let data = T::from_captures(capture_matches);
         Ok(data)
     }
 
-    fn scrap_page(&self, uri: &str) -> Result<Vec<T>, Box<dyn std::error::Error>> {
+    pub fn scrap_page(&self, uri: &str) -> Result<Vec<T>, Box<dyn std::error::Error>> {
         let raw_data = self.fetch_raw_data(uri)?;
         let data = self.scrap_raw_data(&raw_data)?;
         Ok(data)
