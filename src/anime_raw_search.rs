@@ -4,7 +4,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use thiserror::Error;
 
-macro_rules! create_anime_query_url {
+macro_rules! create_anime_raw_query_url {
     ($anime_name: expr) => {
         format!(
             "https://nyaa.si/?f=0&c=1_4&q={}&s=seeders&o=desc",
@@ -63,7 +63,7 @@ fn process_http_response(
 pub fn search_anime_raw(anime_name: String) -> Result<AnimeRawSearchResults, ResponseParsingError> {
     println!("Searching for anime: {}", anime_name);
 
-    let response_text = reqwest::blocking::get(create_anime_query_url!(anime_name))
+    let response_text = reqwest::blocking::get(create_anime_raw_query_url!(anime_name))
         .expect("Failed to get response from nyaa.si")
         .text()
         .expect("Failed to get text from response");
