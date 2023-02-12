@@ -1,14 +1,21 @@
 use clap::Parser;
 use clap::{command, arg};
 
+mod anime_search;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args {
-    #[arg(short, long)]
+struct AnimeSearchArgs {
+    #[arg(short, long, help = "The name of the anime you want to search for")]
     anime_name: String,
+
+    #[arg(short, long, default_value = "false", help = "Prints the results without downloading them")]
+    dry_run: bool,
 }
 
 fn main() {
-    let args = Args::parse();
-    println!("{:#?}", args);
+    let args = AnimeSearchArgs::parse();
+    println!("Args: {:#?}", args);
+    let result = anime_search::search_anime(args.anime_name);
+    println!("Search Result: {:#?}", result);
 }
