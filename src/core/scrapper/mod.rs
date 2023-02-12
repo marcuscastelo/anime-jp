@@ -1,5 +1,4 @@
 use regex::{Regex, CaptureMatches};
-use mockall::*;
 
 pub trait ScrapperData {
     fn from_captures(capture: CaptureMatches) -> Vec<Self> where Self: Sized;

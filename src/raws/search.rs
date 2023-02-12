@@ -1,7 +1,6 @@
 use lazy_static::lazy_static;
 use regex::{CaptureMatches, Regex};
 use std::error::Error;
-use thiserror::Error;
 
 use crate::core::scrapper::{self, HttpScrapper};
 
@@ -21,12 +20,6 @@ lazy_static! {
         Ok(regex) => regex,
         Err(error) => panic!("Failed to create regex for magnet link, error: {}", error),
     };
-}
-
-#[derive(Error, Debug)]
-pub enum ResponseParsingError {
-    #[error("Regex capture count mismatch: expected {0}, actual {1}")]
-    RegexCaptureCountMismatch(usize /* expected */, usize /* actual */),
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]

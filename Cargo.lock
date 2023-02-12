@@ -54,6 +54,7 @@ dependencies = [
  "clap",
  "fuzzy-matcher",
  "lazy_static",
+ "log",
  "mockall",
  "priority-queue",
  "regex",
