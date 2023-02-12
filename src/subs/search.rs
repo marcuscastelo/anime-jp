@@ -5,6 +5,7 @@ use regex::Regex;
 use std::{error::Error};
 
 use crate::core::scrapper::{self, HttpScrapper};
+use crate::core::indexer::Indexer;
 
 lazy_static! {
     static ref MAGNET_REGEX: Regex = match Regex::new(
@@ -13,12 +14,6 @@ lazy_static! {
         Ok(regex) => regex,
         Err(error) => panic!("Failed to create regex for magnet link, error: {}", error),
     };
-}
-
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
-pub struct Indexer {
-    pub name: String,
-    pub url: String,
 }
 
 impl scrapper::ScrapperData for Indexer {

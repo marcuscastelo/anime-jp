@@ -98,7 +98,7 @@ fn test_response() {
     <td class="text-center">13</td>
     <td class="text-assert_matches!()center">1</td>
 </tr>"#;
-    let mut result = HttpScrapper::<AnimeRawData>::new(MAGNET_REGEX.clone())
+    let result = HttpScrapper::<AnimeRawData>::new(MAGNET_REGEX.clone())
         .scrap_raw_data(html)
         .expect("Failed to parse response text");
 
