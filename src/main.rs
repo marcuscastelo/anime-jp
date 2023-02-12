@@ -1,9 +1,9 @@
 use clap::{Parser, ValueEnum};
 use clap::{command, arg};
 
-mod anime_raw_search;
-
-mod anime_sub_search;
+mod raws;
+mod subs;
+mod core;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum SearchType {
@@ -30,12 +30,12 @@ fn main() {
     println!("Args: {:#?}", args);
 
     if args.search_type == SearchType::Raw || args.search_type == SearchType::Both {
-        let result = anime_raw_search::search_anime_raw(args.anime_name);
+        let result = raws::search::search_anime_raw(args.anime_name.as_str());
         println!("Search RAW Result: {:#?}", result);
     }
 
     if args.search_type == SearchType::Subtitles || args.search_type == SearchType::Both {
-        // let result = anime_sub_search::fetch_indexers();
-        // println!("Search Subs Result: {:#?}", result);
+        let result = subs::search::fetch_best_indexers_for(args.anime_name.as_str());
+        println!("Search Subs Result: {:#?}", result);
     }
 }

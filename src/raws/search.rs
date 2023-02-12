@@ -60,7 +60,7 @@ fn process_http_response(
     return Ok(results);
 }
 
-pub fn search_anime_raw(anime_name: String) -> Result<AnimeRawSearchResults, ResponseParsingError> {
+pub fn search_anime_raw(anime_name: &str) -> Result<AnimeRawSearchResults, ResponseParsingError> {
     println!("Searching for anime: {}", anime_name);
 
     let response_text = reqwest::blocking::get(create_anime_raw_query_url!(anime_name))
@@ -74,7 +74,7 @@ pub fn search_anime_raw(anime_name: String) -> Result<AnimeRawSearchResults, Res
 #[test]
 fn test_anime_name() {
     let anime_name = String::from("One Piece");
-    let result = search_anime_raw(anime_name)
+    let result = search_anime_raw(anime_name.as_str())
         .expect("Failed to search anime")
         .pop_front()
         .expect("No results found");
@@ -85,7 +85,7 @@ fn test_anime_name() {
 #[test]
 fn test_anime_raw_magnet() {
     let anime_name = String::from("One Piece");
-    let result = search_anime_raw(anime_name)
+    let result = search_anime_raw(anime_name.as_str())
         .expect("Failed to search anime")
         .pop_front()
         .expect("No results found");

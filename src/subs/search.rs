@@ -70,7 +70,7 @@ pub fn fetch_indexers() -> Result<LinkedList<AnimeIndexer>, ResponseParsingError
 }
 
 pub fn fuzzy_match_indexers(
-    anime_name: String,
+    anime_name: &str,
     indexes: LinkedList<AnimeIndexer>,
 ) -> Vec<AnimeIndexer> {
     let matcher = SkimMatcherV2::default();
@@ -96,7 +96,7 @@ pub fn fuzzy_match_indexers(
 }
 
 pub fn fetch_best_indexers_for(
-    anime_name: String,
+    anime_name: &str,
 ) -> Result<Vec<AnimeIndexer>, ResponseParsingError> {
     let indexers = fetch_indexers()?;
     let sorted_indexers = fuzzy_match_indexers(anime_name, indexers);
