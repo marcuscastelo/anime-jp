@@ -1,3 +1,4 @@
+use std::collections::LinkedList;
 
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -22,20 +23,24 @@ lazy_static! {
 }
 
 #[derive(Debug)]
-pub struct AnimeSearchResult {
+pub struct AnimeRawSearchResult {
     pub anime_name: String,
     pub anime_raw_magnet: String,
 }
 
 #[derive(Error, Debug)]
-enum ResponseParsingError {
+pub enum ResponseParsingError {
     #[error("Regex capture count mismatch: expected {0}, actual {1}")]
     RegexCaptureCountMismatch(usize /* expected */, usize /* actual */),
 }
 
+type AnimeRawSearchResults = LinkedList<AnimeRawSearchResult>;
+
 fn process_http_response(
     response_text: String,
-) -> Result<Option<AnimeSearchResult>, ResponseParsingError> {
+) -> Result<AnimeRawSearchResults, ResponseParsingError> {
+    let mut results = LinkedList::new();
+
     for cap in MAGNET_REGEX.captures_iter(&response_text) {
         if cap.len() != 5 {
             return Err(ResponseParsingError::RegexCaptureCountMismatch(
@@ -46,16 +51,16 @@ fn process_http_response(
 
         let anime_name = cap[2].to_string();
         let anime_raw_magnet = cap[3].to_string();
-        return Ok(Some(AnimeSearchResult {
+        results.push_back(AnimeRawSearchResult {
             anime_name,
             anime_raw_magnet,
-        }));
+        });
     }
 
-    return Ok(None);
+    return Ok(results);
 }
 
-pub fn search_anime(anime_name: String) -> Option<AnimeSearchResult> {
+pub fn search_anime_raw(anime_name: String) -> Result<AnimeRawSearchResults, ResponseParsingError> {
     println!("Searching for anime: {}", anime_name);
 
     let response_text = reqwest::blocking::get(create_anime_query_url!(anime_name))
@@ -63,23 +68,27 @@ pub fn search_anime(anime_name: String) -> Option<AnimeSearchResult> {
         .text()
         .expect("Failed to get text from response");
 
-    return process_http_response(response_text).expect("Failed to parse response text");
+    return process_http_response(response_text);
 }
 
 #[test]
 fn test_anime_name() {
     let anime_name = String::from("One Piece");
-    let result = match search_anime(anime_name) {
-        Some(val) => val,
-        None => panic!("Anime not found"),
-    };
+    let result = search_anime_raw(anime_name)
+        .expect("Failed to search anime")
+        .pop_front()
+        .expect("No results found");
+
     assert!(result.anime_name.contains("One Piece"));
 }
 
 #[test]
 fn test_anime_raw_magnet() {
     let anime_name = String::from("One Piece");
-    let result = search_anime(anime_name).expect("Anime not found");
+    let result = search_anime_raw(anime_name)
+        .expect("Failed to search anime")
+        .pop_front()
+        .expect("No results found");
     assert!(result.anime_raw_magnet.starts_with("magnet:?xt=urn:btih:"));
 }
 
@@ -106,6 +115,16 @@ fn test_response() {
     <td class="text-center">13</td>
     <td class="text-assert_matches!()center">1</td>
 </tr>"#;
-    let result = process_http_response(html.to_string()).expect("Failed to parse response text");
-    assert_eq!(result.unwrap().anime_name, "[Fumi-Raws] (One Piece (1051) - (フジテレビ 1920x1080).mkv");
+    let mut result =
+        process_http_response(html.to_string()).expect("Failed to parse response text");
+
+    let result = result.pop_front().expect("No results found");
+    assert_eq!(
+        result.anime_name,
+        "[Fumi-Raws] (One Piece (1051) - (フジテレビ 1920x1080).mkv"
+    );
+    assert_eq!(
+        result.anime_raw_magnet,
+        "magnet:?xt=urn:btih:568807a73ecd33fff3ac19f47805f0940cbdb9ac&amp;dn=%5BFumi-Raws%5D%20%28One%20Piece%20%281051%29%20-%20%28%E3%83%95%E3%82%B8%E3%83%86%E3%83%AC%E3%83%93%201920x1080%29.mkv&amp;tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce&amp;tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&amp;tr=udp%3A%2F%2Fexodus.desync.com%3A6969%2Fannounce&amp;tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce"
+    );
 }
