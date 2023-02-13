@@ -26,8 +26,8 @@ impl scrapper::ScrapperData for Indexer {
             .map(|capture| {
                 log::trace!(target: "Indexer", "Capture: {:?}", capture);
                 let name = capture[2].to_string();
-                let url = format!("https://kitsunekko.net/{}", capture[1].to_string());
-                Indexer { name, url }
+                let uri = format!("https://kitsunekko.net/{}", capture[1].to_string());
+                Indexer::new(name, uri)
             })
             .collect()
     }
@@ -44,15 +44,15 @@ pub fn fuzzy_match_indexers(anime_name: &str, indexes: Vec<Indexer>) -> Vec<Inde
     let matcher = SkimMatcherV2::default();
     let mut matches = PriorityQueue::new();
     for index in indexes {
-        let score = if index.name.to_lowercase() == anime_name.to_lowercase() {
+        let score = if index.name().to_lowercase() == anime_name.to_lowercase() {
             Some(std::i64::MAX)
         } else {
-            matcher.fuzzy_match(&index.name.to_lowercase(), &anime_name.to_lowercase())
+            matcher.fuzzy_match(&index.name().to_lowercase(), &anime_name.to_lowercase())
         };
 
         match score {
             Some(score) => {
-                let size_diff = (index.name.len() as i64 - anime_name.len() as i64).abs();
+                let size_diff = (index.name().len() as i64 - anime_name.len() as i64).abs();
                 let score = score as i64 - size_diff;
                 matches.push(index, score);
             }
@@ -72,7 +72,7 @@ pub fn fetch_best_indexers_for(
 }
 
 pub fn fetch_sub_files(anime_indexer: &Indexer) -> Result<Vec<Indexer>, Box<dyn Error>>{
-    let url = anime_indexer.url.clone();
+    let url = anime_indexer.uri().clone();
     let regex = Regex::new(r#"<tr><td><a href="([^"]+).+?<strong>([^<]+)"#).unwrap();
     let sub_files = HttpScrapper::<Indexer>::new(regex).scrap_page(&url);
     return sub_files;
@@ -85,14 +85,14 @@ mod tests {
     macro_rules! bocchi_the_mock {
         () => {
             vec![
-                Indexer {
-                    name: "Bocchi the Rock! 2".to_string(),
-                    url: "https://kitsunekko.net/bocchi-the-rock-2".to_string(),
-                },
-                Indexer {
-                    name: "Bocchi the Rock!".to_string(),
-                    url: "https://kitsunekko.net/bocchi-the-rock".to_string(),
-                },
+                Indexer::new(
+                    "Bocchi the Rock! 2".to_string(),
+                    "https://kitsunekko.net/bocchi-the-rock-2".to_string(),
+                ),
+                Indexer::new(
+                    "Bocchi the Rock!".to_string(),
+                    "https://kitsunekko.net/bocchi-the-rock".to_string(),
+                ),
             ]
         };
     }
@@ -101,12 +101,12 @@ mod tests {
     fn test_fetch_indexers() {
         let anime_list = fetch_indexers().unwrap();
         assert!(anime_list.len() > 0);
-        assert!(anime_list.get(0).unwrap().name.len() > 0);
-        assert!(anime_list.get(0).unwrap().url.len() > 0);
+        assert!(anime_list.get(0).unwrap().name().len() > 0);
+        assert!(anime_list.get(0).unwrap().uri().len() > 0);
 
         let contains_bocchi = anime_list
             .iter()
-            .any(|anime| anime.name == "Bocchi the Rock!");
+            .any(|anime| anime.name() == "Bocchi the Rock!");
         assert!(
             contains_bocchi,
             "Bocchi the Rock! is not in the list of available animes"
@@ -119,16 +119,16 @@ mod tests {
 
         let matches = fuzzy_match_indexers("Bocchi the Rock!", mock_anime_list);
         assert_eq!(matches.len(), 2);
-        assert_eq!(matches[0].name, "Bocchi the Rock!");
-        assert_eq!(matches[1].name, "Bocchi the Rock! 2");
+        assert_eq!(matches[0].name(), "Bocchi the Rock!");
+        assert_eq!(matches[1].name(), "Bocchi the Rock! 2");
     }
 
     #[test]
     fn test_fetch_best_indexers_for_relife() {
         let matches = fetch_best_indexers_for("relife").unwrap();
         assert!(matches.len() > 2);
-        assert_eq!(matches[0].name, "ReLIFE");
-        assert_eq!(matches[1].name, "ReLife Kanketsu Hen");
+        assert_eq!(matches[0].name(), "ReLIFE");
+        assert_eq!(matches[1].name(), "ReLife Kanketsu Hen");
     }
 
     #[test]
@@ -136,8 +136,8 @@ mod tests {
         let mock_anime_list = bocchi_the_mock!();
         let matches = fuzzy_match_indexers("Bocchi", mock_anime_list);
         assert_eq!(matches.len(), 2);
-        assert_eq!(matches[0].name, "Bocchi the Rock!");
-        assert_eq!(matches[1].name, "Bocchi the Rock! 2");
+        assert_eq!(matches[0].name(), "Bocchi the Rock!");
+        assert_eq!(matches[1].name(), "Bocchi the Rock! 2");
     }
 
     #[test]
@@ -145,6 +145,6 @@ mod tests {
         let mock_anime_list = bocchi_the_mock!();
         let matches = fuzzy_match_indexers("Bocchi 2", mock_anime_list);
         assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].name, "Bocchi the Rock! 2");
+        assert_eq!(matches[0].name(), "Bocchi the Rock! 2");
     }
 }

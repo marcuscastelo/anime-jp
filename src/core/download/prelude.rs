@@ -1,4 +1,4 @@
 pub use super::{
-    downloader::Downloader,
+    downloader::RawDownloader,
     http::ReqwestDownloader,
 };

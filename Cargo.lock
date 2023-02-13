@@ -59,6 +59,7 @@ dependencies = [
  "log",
  "mockall",
  "priority-queue",
+ "rand",
  "regex",
  "reqwest",
  "thiserror",

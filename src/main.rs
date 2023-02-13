@@ -1,10 +1,11 @@
+use clap::{arg, command};
 use clap::{Parser, ValueEnum};
-use clap::{command, arg};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
 
-use crate::core::download::downloader::Downloader;
+use crate::core::download::downloader::{Destination, FileDownloader, RawDownloader};
 use crate::core::download::http::ReqwestDownloader;
+use crate::subs::download::SubsDownloader;
 
 mod core;
 mod raws;
@@ -23,10 +24,21 @@ struct Args {
     #[arg(short, long, help = "The name of the anime you want to search for")]
     anime_name: String,
 
-    #[arg(short, long, default_value = "false", help = "Prints the results without downloading them")]
+    #[arg(
+        short,
+        long,
+        default_value = "false",
+        help = "Prints the results without downloading them"
+    )]
     dry_run: bool,
 
-    #[arg(value_enum, short, long, default_value = "subtitles", help = "The type of search you want to perform")]
+    #[arg(
+        value_enum,
+        short,
+        long,
+        default_value = "subtitles",
+        help = "The type of search you want to perform"
+    )]
     search_type: SearchType,
 
     #[arg(short, long, default_value = "false", help = "Show more logs")]
@@ -57,7 +69,6 @@ fn setup_logger(level: LevelFilter) -> Result<(), fern::InitError> {
         .apply()?;
     Ok(())
 }
-
 
 fn main() {
     let args = Args::parse();
@@ -107,20 +118,11 @@ fn main() {
         log::info!("Found subs indexers: {:#?}", subs_indexers);
 
         if !args.dry_run {
-            log::info!("Downloading subs...");
-            let subs_contents = ReqwestDownloader::new().download_indexers(&subs_indexers);
-            let subs_contents = match subs_contents {
-                Ok(subs_contents) => subs_contents,
-                Err(e) => {
-                    log::error!("Failed to download subs: {}", e);
-                    return;
-                }
-            };
-            log::info!("Fetched subs: {:#?}", subs_contents.len());
-            log::info!("Writing subs to file...");
+            log::trace!("Creating downloader...");
+            let downloader = SubsDownloader::new();
 
-            //TODO: non-srt files
-            subs::save::save_subs(args.anime_name.as_str(), &subs_contents).unwrap();
+            log::info!("Downloading subs...");
+            downloader.download_indexers_to_file(&subs_indexers, &Destination::Default).unwrap();
             log::info!("Done!");
         }
     }
