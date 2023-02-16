@@ -4,6 +4,7 @@ use std::error::Error;
 use tokio::runtime::Runtime;
 
 use super::api;
+use super::api::torrents::TorrentList;
 
 pub struct QBitTorrentDownloader {
     runtime: Runtime,
@@ -21,12 +22,17 @@ impl FileDownloader for QBitTorrentDownloader {
     fn download_uri_to_file(&self, uri: &str, dest: &Destination) -> Result<(), Box<dyn Error>> {
         let future = async {
             api::torrents::add(uri).await?;
-            // while !api::torrents::is_completed().await? {
-            //     todo!("wait for torrent to complete");
-            // }
+            let has_unfinished_torrents =
+                |torrents: TorrentList| torrents.0.iter().any(|t| !t.finished());
+
+            while has_unfinished_torrents(api::torrents::info().await?) {
+                println!("Waiting for torrent to finish...");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+
             Ok(()) as Result<(), Box<dyn Error>>
         };
-        
+
         self.runtime.block_on(future)?;
         Ok(())
     }

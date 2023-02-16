@@ -6,10 +6,18 @@ use tokio::runtime::Runtime;
 pub struct Torrent {
     hash: String,
     name: String,
+    size: i64,
+    state: String,
+}
+
+impl Torrent {
+    pub fn finished(&self) -> bool {
+        self.state == "uploading"
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-struct TorrentList(Vec<Torrent>);
+pub struct TorrentList(pub Vec<Torrent>);
 
 //TODO: mover para um arquivo de configuração
 const API_URL: &str = "http://127.0.0.1:8080/api/v2/";
@@ -69,11 +77,6 @@ pub async fn info() -> Result<TorrentList, Box<dyn std::error::Error>> {
 
     let body: TorrentList = res.json::<TorrentList>().await.unwrap();
     Ok(body)
-}
-
-
-pub async fn is_completed(torrent: &Torrent) -> Result<bool, Box<dyn std::error::Error>> {
-    todo!("Implementar")
 }
 
 #[test]
