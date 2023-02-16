@@ -1,9 +1,6 @@
 use crate::core::download::downloader::{Destination, FileDownloader};
 use crate::core::indexer::Indexer;
-use reqwest::header::{HeaderMap, CONTENT_TYPE};
-use reqwest::Client;
 use std::error::Error;
-use std::future::Future;
 use tokio::runtime::Runtime;
 
 use super::api;
@@ -23,15 +20,15 @@ impl QBitTorrentDownloader {
 impl FileDownloader for QBitTorrentDownloader {
     fn download_uri_to_file(&self, uri: &str, dest: &Destination) -> Result<(), Box<dyn Error>> {
         let future = async {
-            api::add_torrent(uri).await?;
-            while !api::is_torrent_completed("").await? {
-                todo!("wait for torrent to complete");
-            }
+            api::torrents::add(uri).await?;
+            // while !api::torrents::is_completed().await? {
+            //     todo!("wait for torrent to complete");
+            // }
             Ok(()) as Result<(), Box<dyn Error>>
         };
         
         self.runtime.block_on(future)?;
-        todo!();
+        Ok(())
     }
 
     fn download_indexer_to_file(

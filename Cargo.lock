@@ -62,6 +62,7 @@ dependencies = [
  "rand",
  "regex",
  "reqwest",
+ "serde",
  "thiserror",
  "tokio",
 ]
