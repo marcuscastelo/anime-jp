@@ -9,6 +9,7 @@ use crate::subs::download::SubsDownloader;
 mod core;
 mod raws;
 mod subs;
+mod qbittorrent;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum SearchType {
