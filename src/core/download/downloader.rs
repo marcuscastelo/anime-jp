@@ -18,7 +18,7 @@ pub enum Destination {
     Default,
 }
 
-pub trait FileDownloader: RawDownloader {
+pub trait FileDownloader {
     fn download_uri_to_file(&self, uri: &Uri, dest: &Destination) -> Result<(), Box<dyn Error>>;
     fn download_indexer_to_file(
         &self,

@@ -3,8 +3,7 @@ use clap::{Parser, ValueEnum};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
 
-use crate::core::download::downloader::{Destination, FileDownloader, RawDownloader};
-use crate::core::download::http::ReqwestDownloader;
+use crate::core::download::downloader::{Destination, FileDownloader};
 use crate::subs::download::SubsDownloader;
 
 mod core;

@@ -6,11 +6,9 @@ use rand::Rng;
 use crate::core::download::downloader::{Destination, FileDownloader, Uri};
 use crate::core::download::prelude::*;
 use crate::core::indexer::Indexer;
-use crate::subs;
 
 const DEFAULT_FOLDER: &str = "subs";
 const DEFAULT_EXTENSION: &str = "srt";
-
 pub struct SubsDownloader {
     inner_downloader: ReqwestDownloader,
     default_folder: String,
@@ -24,7 +22,8 @@ impl SubsDownloader {
         }
     }
 
-    pub fn with_default_folder(custom_default_folder: String) -> Self {
+    #[allow(dead_code)]
+    pub fn with_custom_default_folder(custom_default_folder: String) -> Self {
         SubsDownloader {
             inner_downloader: ReqwestDownloader::new(),
             default_folder: custom_default_folder,

@@ -1,6 +1,6 @@
-use std::{error::Error, fs::File, io::Write};
+// use std::{error::Error, fs::File, io::Write};
 
-pub type SubsInRAM = Vec<String>;
+// pub type SubsInRAM = Vec<String>;
 
 
 // //TODO: refactor into struct?
