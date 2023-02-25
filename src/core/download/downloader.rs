@@ -1,13 +1,25 @@
-use std::error::Error;
-
 use crate::core::indexer::Indexer;
 
 pub type Uri = str;
 
-pub trait RawDownloader {
-    fn download_uri(&self, uri: &Uri) -> Result<String, Box<dyn Error>>;
-    fn download_indexer(&self, indexer: &Indexer) -> Result<String, Box<dyn Error>>;
-    fn download_indexers(&self, indexers: &[Indexer]) -> Result<Vec<String>, Box<dyn Error>>;
+use error_stack::Result;
+use std::error::Error;
+
+#[derive(Debug)]
+pub struct StringDownloaderError;
+
+impl std::fmt::Display for StringDownloaderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Failed to download to string")
+    }
+}
+
+impl Error for StringDownloaderError {}
+
+pub trait StringDownloader {
+    fn download_uri(&self, uri: &Uri) -> Result<String, StringDownloaderError>;
+    fn download_indexer(&self, indexer: &Indexer) -> Result<String, StringDownloaderError>;
+    fn download_indexers(&self, indexers: &[Indexer]) -> Result<Vec<String>, StringDownloaderError>;
 }
 
 #[allow(dead_code)]
@@ -18,16 +30,31 @@ pub enum Destination {
     Default,
 }
 
+#[derive(Debug)]
+pub struct FileDownloaderError;
+
+impl std::fmt::Display for FileDownloaderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Failed to download to file")
+    }
+}
+
+impl Error for FileDownloaderError {}
+
 pub trait FileDownloader {
-    fn download_uri_to_file(&self, uri: &Uri, dest: &Destination) -> Result<(), Box<dyn Error>>;
+    fn download_uri_to_file(
+        &self,
+        uri: &Uri,
+        dest: &Destination,
+    ) -> Result<(), FileDownloaderError>;
     fn download_indexer_to_file(
         &self,
         indexer: &Indexer,
         dest: &Destination,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), FileDownloaderError>;
     fn download_indexers_to_file(
         &self,
         indexers: &[Indexer],
         dest: &Destination,
-    ) -> Result<(), Box<dyn Error>>;
+    ) -> Result<(), FileDownloaderError>;
 }

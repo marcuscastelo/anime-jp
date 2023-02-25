@@ -9,6 +9,7 @@ edition = "2021"
 cargo-nextest = "0.9.49"
 chrono = "0.4.23"
 clap = { version = "4.1.4", features = ["derive", "cargo"] }
+error-stack = "0.3.1"
 fern = { version = "0.6.1", features = ["colored"] }
 fuzzy-matcher = "0.3.7"
 lazy_static = "1.4.0"

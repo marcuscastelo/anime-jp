@@ -10,6 +10,7 @@ mod core;
 mod raws;
 mod subs;
 mod qbittorrent;
+mod prelude;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum SearchType {

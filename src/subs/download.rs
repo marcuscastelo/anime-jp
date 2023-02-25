@@ -1,41 +1,30 @@
-use std::error::Error;
-
 use chrono::Utc;
 use rand::Rng;
 
-use crate::core::download::downloader::{Destination, FileDownloader, Uri};
+use crate::core::download::downloader::{
+    Destination, FileDownloader, FileDownloaderError, StringDownloaderError, Uri,
+};
 use crate::core::download::prelude::*;
 use crate::core::indexer::Indexer;
+
+use error_stack::{Result, ResultExt};
 
 const DEFAULT_FOLDER: &str = "subs";
 const DEFAULT_EXTENSION: &str = "srt";
 pub struct SubsDownloader {
-    inner_downloader: ReqwestDownloader,
+    inner_downloader: Box<dyn StringDownloader>,
     default_folder: String,
 }
 
 impl SubsDownloader {
     pub fn new() -> Self {
         SubsDownloader {
-            inner_downloader: ReqwestDownloader::new(),
+            inner_downloader: Box::new(ReqwestDownloader::new()),
             default_folder: DEFAULT_FOLDER.to_string(),
         }
     }
 
-    #[allow(dead_code)]
-    pub fn with_custom_default_folder(custom_default_folder: String) -> Self {
-        SubsDownloader {
-            inner_downloader: ReqwestDownloader::new(),
-            default_folder: custom_default_folder,
-        }
-    }
-
-    fn save(
-        &self,
-        content: &String,
-        destination: &Destination,
-        file_basename_hint: Option<&String>,
-    ) {
+    fn save(&self, content: &String, destination: &Destination, file_basename_hint: Option<&str>) {
         let folder_name = match destination {
             Destination::GivenFolderGivenFileBasename(folder, _) => folder,
             Destination::GivenFolderGuessFileBasename(folder) => folder,
@@ -44,9 +33,13 @@ impl SubsDownloader {
         };
 
         let file_basename = match destination {
-            Destination::GivenFolderGivenFileBasename(_, ref file_basename) => Some(file_basename),
+            Destination::GivenFolderGivenFileBasename(_, ref file_basename) => {
+                Some(file_basename.as_str())
+            }
             Destination::GivenFolderGuessFileBasename(_) => file_basename_hint,
-            Destination::DefaultFolderGivenFileBasename(ref file_basename) => Some(file_basename),
+            Destination::DefaultFolderGivenFileBasename(ref file_basename) => {
+                Some(file_basename.as_str())
+            }
             Destination::Default => file_basename_hint,
         };
 
@@ -64,16 +57,19 @@ impl SubsDownloader {
     }
 }
 
-impl RawDownloader for SubsDownloader {
-    fn download_uri(&self, uri: &Uri) -> Result<String, Box<dyn Error>> {
+impl StringDownloader for SubsDownloader {
+    fn download_uri(&self, uri: &Uri) -> Result<String, StringDownloaderError> {
         self.inner_downloader.download_uri(uri)
     }
 
-    fn download_indexer(&self, indexer: &Indexer) -> Result<String, Box<dyn Error>> {
+    fn download_indexer(&self, indexer: &Indexer) -> Result<String, StringDownloaderError> {
         self.inner_downloader.download_indexer(indexer)
     }
 
-    fn download_indexers(&self, indexers: &[Indexer]) -> Result<Vec<String>, Box<dyn Error>> {
+    fn download_indexers(
+        &self,
+        indexers: &[Indexer],
+    ) -> Result<Vec<String>, StringDownloaderError> {
         self.inner_downloader.download_indexers(indexers)
     }
 }
@@ -91,9 +87,18 @@ fn generate_random_file_basename() -> String {
 
 impl FileDownloader for SubsDownloader {
     // TODO: handle .zip and other formats
-    fn download_uri_to_file(&self, uri: &Uri, dest: &Destination) -> Result<(), Box<dyn Error>> {
-        let content = self.download_uri(uri)?;
+    fn download_uri_to_file(
+        &self,
+        uri: &Uri,
+        dest: &Destination,
+    ) -> Result<(), FileDownloaderError> {
+        let content = self
+            .download_uri(uri)
+            .attach_printable("Failed to download String from URI")
+            .change_context(FileDownloaderError)?;
+
         self.save(&content, &dest, None);
+
         return Ok(());
     }
 
@@ -101,9 +106,16 @@ impl FileDownloader for SubsDownloader {
         &self,
         indexer: &Indexer,
         dest: &Destination,
-    ) -> Result<(), Box<dyn Error>> {
-        let content = self.download_indexer(indexer)?;
+    ) -> Result<(), FileDownloaderError> {
+        let content = self
+            .download_indexer(indexer)
+            .attach_printable_lazy(|| {
+                format!("Failed to download String from Indexer: {:?}", indexer)
+            })
+            .change_context(FileDownloaderError)?;
+
         self.save(&content, &dest, Some(indexer.name()));
+
         return Ok(());
     }
 
@@ -111,12 +123,59 @@ impl FileDownloader for SubsDownloader {
         &self,
         indexers: &[Indexer],
         dest: &Destination,
-    ) -> Result<(), Box<dyn Error>> {
-        let content = self.download_indexers(indexers)?;
+    ) -> Result<(), FileDownloaderError> {
+        let content = self
+            .download_indexers(indexers)
+            .attach_printable_lazy(|| {
+                format!("Failed to download Strings from Indexers: {:?}", indexers)
+            })
+            .change_context(FileDownloaderError)?;
         // TODO: async code (both download and save)
         for (indexer, content) in indexers.iter().zip(content.iter()) {
             self.save(&content, &dest, Some(indexer.name()));
         }
         return Ok(());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_random_file_basename() {
+        let file_name = generate_random_file_basename();
+        assert_eq!(file_name.len(), 26);
+    }
+
+    #[test]
+    fn test_save() {
+        let content = "Hello world".to_string();
+        let dest = Destination::Default;
+        let file_basename_hint = Some("hello");
+        let subs_downloader = SubsDownloader::new();
+        subs_downloader.save(&content, &dest, file_basename_hint);
+        //TODO: assert file exists (or use a mock)
+    }
+
+    #[test]
+    fn test_save_with_given_folder() {
+        let content = "Hello world".to_string();
+        let dest =
+            Destination::GivenFolderGivenFileBasename("test".to_string(), "hello".to_string());
+        let file_basename_hint = Some("hello");
+        let subs_downloader = SubsDownloader::new();
+        subs_downloader.save(&content, &dest, file_basename_hint);
+        //TODO: assert file exists (or use a mock)
+    }
+
+    #[test]
+    fn test_save_with_given_folder_and_no_file_basename_hint() {
+        let content = "Hello world".to_string();
+        let dest = Destination::GivenFolderGuessFileBasename("test".to_string());
+        let file_basename_hint = None;
+        let subs_downloader = SubsDownloader::new();
+        subs_downloader.save(&content, &dest, file_basename_hint);
+        //TODO: assert file exists (or use a mock)
     }
 }
