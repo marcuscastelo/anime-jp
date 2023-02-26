@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use chrono::Utc;
 use rand::Rng;
 
@@ -7,7 +9,7 @@ use crate::core::download::downloader::{
 use crate::core::download::prelude::*;
 use crate::core::indexer::Indexer;
 
-use error_stack::{Result, ResultExt};
+use error_stack::{IntoReport, Result, ResultExt};
 
 const DEFAULT_FOLDER: &str = "subs";
 const DEFAULT_EXTENSION: &str = "srt";
@@ -24,7 +26,11 @@ impl SubsDownloader {
         }
     }
 
-    fn save(&self, content: &String, destination: &Destination, file_basename_hint: Option<&str>) {
+    fn create_file_path(
+        &self,
+        destination: &Destination,
+        file_basename_hint: Option<&str>,
+    ) -> PathBuf {
         let folder_name = match destination {
             Destination::GivenFolderGivenFileBasename(folder, _) => folder,
             Destination::GivenFolderGuessFileBasename(folder) => folder,
@@ -50,10 +56,31 @@ impl SubsDownloader {
 
         let file_name = format!("{}.{}", file_basename, DEFAULT_EXTENSION);
         let file_path = format!("{}/{}", folder_name, file_name);
+        PathBuf::from(file_path)
+    }
 
-        // Create the folder if it doesn't exist
-        std::fs::create_dir_all(folder_name).unwrap(); // TODO: move to new module
-        std::fs::write(file_path, content).unwrap(); // TODO: move to new module
+    fn save(&self, content: &String, path: &Path) -> Result<(), std::io::Error> {
+        if let Some(parent) = path.parent() {
+            // Create the folder if it doesn't exist
+            std::fs::create_dir_all(parent)
+                .into_report()
+                .attach_printable_lazy(|| {
+                    format!(
+                        "Failed to create folders for path: '{}', tried to create: '{}'",
+                        path.to_str().unwrap_or("invalid path"),
+                        parent.to_str().unwrap_or("invalid path")
+                    )
+                })?;
+        }
+
+        std::fs::write(path, content)
+            .into_report()
+            .attach_printable_lazy(|| {
+                format!(
+                    "Failed to save file to path: '{}'",
+                    path.to_str().unwrap_or("invalid path")
+                )
+            }) // TODO: move to new module
     }
 }
 
@@ -70,6 +97,7 @@ impl StringDownloader for SubsDownloader {
         &self,
         indexers: &[Indexer],
     ) -> Result<Vec<String>, StringDownloaderError> {
+        log::debug!("Downloading from indexers: {:?}", indexers);
         self.inner_downloader.download_indexers(indexers)
     }
 }
@@ -92,14 +120,24 @@ impl FileDownloader for SubsDownloader {
         uri: &Uri,
         dest: &Destination,
     ) -> Result<(), FileDownloaderError> {
+        let file_path = self.create_file_path(&dest, None);
+
+        if file_path.exists() {
+            log::debug!(
+                "File already exists, skipping download: '{}'",
+                file_path.to_str().unwrap_or("invalid path")
+            );
+            return Ok(());
+        }
+
         let content = self
             .download_uri(uri)
             .attach_printable("Failed to download String from URI")
             .change_context(FileDownloaderError)?;
 
-        self.save(&content, &dest, None);
-
-        return Ok(());
+        self.save(&content, &file_path)
+            .attach_printable("Failed to save file to path")
+            .change_context(FileDownloaderError)
     }
 
     fn download_indexer_to_file(
@@ -107,6 +145,16 @@ impl FileDownloader for SubsDownloader {
         indexer: &Indexer,
         dest: &Destination,
     ) -> Result<(), FileDownloaderError> {
+        let file_path = self.create_file_path(&dest, Some(indexer.name()));
+
+        if file_path.exists() {
+            log::debug!(
+                "File already exists, skipping download: '{}'",
+                file_path.to_str().unwrap_or("invalid path")
+            );
+            return Ok(());
+        }
+
         let content = self
             .download_indexer(indexer)
             .attach_printable_lazy(|| {
@@ -114,9 +162,9 @@ impl FileDownloader for SubsDownloader {
             })
             .change_context(FileDownloaderError)?;
 
-        self.save(&content, &dest, Some(indexer.name()));
-
-        return Ok(());
+        self.save(&content, &file_path)
+            .attach_printable("Failed to save file to path")
+            .change_context(FileDownloaderError)
     }
 
     fn download_indexers_to_file(
@@ -124,16 +172,32 @@ impl FileDownloader for SubsDownloader {
         indexers: &[Indexer],
         dest: &Destination,
     ) -> Result<(), FileDownloaderError> {
+        log::debug!("Downloading subtitles from indexers: {:?}", indexers);
         let content = self
             .download_indexers(indexers)
             .attach_printable_lazy(|| {
                 format!("Failed to download Strings from Indexers: {:?}", indexers)
             })
             .change_context(FileDownloaderError)?;
+
+        log::debug!("Saving downloaded subtitles to files");
         // TODO: async code (both download and save)
         for (indexer, content) in indexers.iter().zip(content.iter()) {
-            self.save(&content, &dest, Some(indexer.name()));
+            let file_path = self.create_file_path(&dest, Some(indexer.name()));
+
+            if file_path.exists() {
+                log::debug!(
+                    "File already exists, skipping save: '{}'", //TODO: also skip download (if possible)
+                    file_path.to_str().unwrap_or("invalid path")
+                );
+                continue;
+            }
+
+            self.save(&content, &file_path)
+                .attach_printable("Failed to save file to path")
+                .change_context(FileDownloaderError)?;
         }
+
         return Ok(());
     }
 }

@@ -19,10 +19,11 @@ impl Error for StringDownloaderError {}
 pub trait StringDownloader {
     fn download_uri(&self, uri: &Uri) -> Result<String, StringDownloaderError>;
     fn download_indexer(&self, indexer: &Indexer) -> Result<String, StringDownloaderError>;
+
+    #[deprecated(note = "Use download_indexer in a loop instead")]
     fn download_indexers(&self, indexers: &[Indexer]) -> Result<Vec<String>, StringDownloaderError>;
 }
 
-#[allow(dead_code)]
 pub enum Destination {
     GivenFolderGivenFileBasename(String /* folder */, String /* file basename */),
     GivenFolderGuessFileBasename(String /* folder */),
@@ -52,6 +53,8 @@ pub trait FileDownloader {
         indexer: &Indexer,
         dest: &Destination,
     ) -> Result<(), FileDownloaderError>;
+
+    #[deprecated(note = "Use download_indexer_to_file in a loop instead")]
     fn download_indexers_to_file(
         &self,
         indexers: &[Indexer],

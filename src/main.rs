@@ -1,16 +1,18 @@
 use clap::{arg, command};
 use clap::{Parser, ValueEnum};
+use error_stack::ResultExt;
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
+use indicatif::ProgressBar;
 
 use crate::core::download::downloader::{Destination, FileDownloader};
 use crate::subs::download::SubsDownloader;
 
 mod core;
+mod prelude;
+mod qbittorrent;
 mod raws;
 mod subs;
-mod qbittorrent;
-mod prelude;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum SearchType {
@@ -37,7 +39,7 @@ struct Args {
         value_enum,
         short,
         long,
-        default_value = "subtitles",
+        default_value = "raw",
         help = "The type of search you want to perform"
     )]
     search_type: SearchType,
@@ -57,9 +59,11 @@ fn setup_logger(level: LevelFilter) -> Result<(), fern::InitError> {
     fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "{}[{}][{}] {}",
-                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                "{}({})[{}:{}][{}] {}",
+                chrono::Local::now().format("%H:%M:%S "),
                 record.target(),
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
                 colors.color(record.level()),
                 message
             ))
@@ -69,6 +73,59 @@ fn setup_logger(level: LevelFilter) -> Result<(), fern::InitError> {
         .chain(fern::log_file("output.log")?)
         .apply()?;
     Ok(())
+}
+
+fn search_raws(args: &Args) {
+    log::info!("Searching for anime raws for: {}", args.anime_name);
+    let result = raws::search::search_anime_raws(args.anime_name.as_str());
+    println!("Search for anime: {:#?}", result);
+}
+
+fn search_subs(args: &Args) {
+    log::info!("Searching for anime subtitles for: {}", args.anime_name);
+    let indexers = subs::search::fetch_best_indexers_for(args.anime_name.as_str());
+
+    let anime_indexers = match indexers {
+        Ok(indexers) => indexers,
+        Err(e) => {
+            log::error!("Failed to fetch indexers: {}", e);
+            return;
+        }
+    };
+
+    let anime_indexer = anime_indexers.get(0).expect("No indexers found");
+    log::debug!("Found anime indexer: {:#?}", anime_indexer);
+    log::info!("Found anime!: {:#?}", anime_indexer.name());
+
+    log::debug!("Fetching sub files for anime indexer...");
+    let subs_indexers = subs::search::fetch_sub_files(anime_indexer).unwrap();
+    log::info!("Found {} subs for anime {}", subs_indexers.len(), anime_indexer.name());
+    log::trace!("Subs indexers: {:#?}", subs_indexers);
+
+    if args.dry_run {
+        log::info!("Dry run, not downloading subs");
+        return;
+    }
+
+    log::trace!("Creating downloader...");
+    let downloader = SubsDownloader::new();
+
+    log::info!("Downloading subs...");
+    let pb = ProgressBar::new(subs_indexers.len() as u64);
+    for subs_indexer in subs_indexers {
+        let result = downloader
+            .download_indexer_to_file(&subs_indexer, &Destination::Default);
+
+        match result {
+            Ok(_) => log::trace!("Downloaded subs: {}", subs_indexer.name()),
+            Err(err) => log::error!("\n{err:?}"),
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        pb.inc(1);
+    }
+    pb.finish();
+
 }
 
 fn main() {
@@ -93,38 +150,16 @@ fn main() {
         log::set_max_level(log::LevelFilter::Trace);
     }
 
+    log::info!("Search type: {:#?}", args.search_type);
+
     if args.search_type == SearchType::Raw || args.search_type == SearchType::Both {
-        log::info!("Searching for anime raws for: {}", args.anime_name);
-        let result = raws::search::search_anime_raws(args.anime_name.as_str());
-        println!("Search for anime: {:#?}", result);
+        search_raws(&args);
     }
 
     if args.search_type == SearchType::Subtitles || args.search_type == SearchType::Both {
-        log::info!("Searching for anime subtitles for: {}", args.anime_name);
-        let indexers = subs::search::fetch_best_indexers_for(args.anime_name.as_str());
-        println!("Search for anime: {:#?}", indexers);
-        let anime_indexers = match indexers {
-            Ok(indexers) => indexers,
-            Err(e) => {
-                log::error!("Failed to fetch indexers: {}", e);
-                return;
-            }
-        };
-
-        let anime_indexer = anime_indexers.get(0).expect("No indexers found");
-        log::info!("Found anime indexer: {:#?}", anime_indexer);
-
-        log::info!("Fetching sub files for anime indexer...");
-        let subs_indexers = subs::search::fetch_sub_files(anime_indexer).unwrap();
-        log::info!("Found subs indexers: {:#?}", subs_indexers);
-
-        if !args.dry_run {
-            log::trace!("Creating downloader...");
-            let downloader = SubsDownloader::new();
-
-            log::info!("Downloading subs...");
-            downloader.download_indexers_to_file(&subs_indexers, &Destination::Default).unwrap();
-            log::info!("Done!");
-        }
+        search_subs(&args);
     }
+
+    log::info!("Done!");
+
 }

@@ -5,15 +5,18 @@ pub struct Indexer {
 }
 
 impl Indexer {
-    pub fn new(name: String, uri: String) -> Self {
-        Indexer { name, uri }
+    pub fn new(name: &str, uri: &str) -> Self {
+        Indexer {
+            name: name.to_owned(),
+            uri: uri.to_owned(),
+        }
     }
 
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub fn uri(&self) -> &String {
+    pub fn uri(&self) -> &str {
         &self.uri
     }
 }

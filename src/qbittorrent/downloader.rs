@@ -26,7 +26,8 @@ impl FileDownloader for QBitTorrentDownloader {
         _dest: &Destination,
     ) -> Result<(), FileDownloaderError> {
         let future = async {
-            api::torrents::add(uri)
+            let api = api::QBitTorrentApi::new();
+            api.add(uri)
                 .await
                 .attach_printable_lazy(|| format!("Failed to add torrent with uri: {}", uri))
                 .change_context(FileDownloaderError)?;
@@ -36,7 +37,7 @@ impl FileDownloader for QBitTorrentDownloader {
 
             loop {
                 log::info!("Waiting for torrents to finish");
-                let info = api::torrents::info()
+                let info = api.info()
                     .await
                     .attach_printable("Failed to get torrent info")
                     .change_context(FileDownloaderError)?;

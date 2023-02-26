@@ -14,6 +14,7 @@ impl ReqwestDownloader {
 
 impl StringDownloader for ReqwestDownloader {
     fn download_uri(&self, uri: &str) -> Result<String, StringDownloaderError> {
+        log::debug!("Downloading from uri: {}", uri);
         //TODO: use Client instead of blocking::get
         let response = reqwest::blocking::get(uri)
             .into_report()
@@ -24,22 +25,32 @@ impl StringDownloader for ReqwestDownloader {
             .text()
             .into_report()
             .attach_printable("Failed to get response text")
-            .change_context(StringDownloaderError)?; 
+            .change_context(StringDownloaderError)?;
+
+        log::debug!("Download complete from uri: {}", uri);
+        log::trace!("Downloaded text: {}", response_text);
 
         return Ok(response_text);
     }
 
     fn download_indexer(&self, indexer: &Indexer) -> Result<String, StringDownloaderError> {
         let uri = &indexer.uri();
-        self.download_uri(uri)
+
+        log::debug!("Downloading from indexer: {:?}", indexer);
+        let result = self.download_uri(uri);
+        log::debug!("Download complete from indexer: {:?}", indexer);
+
+        result
     }
 
     fn download_indexers(
         &self,
         indexers: &[Indexer],
     ) -> Result<Vec<String>, StringDownloaderError> {
+        log::debug!("Downloading from indexers: {:?}", indexers);
         let mut results = Vec::new();
         for indexer in indexers {
+            log::debug!("Downloading from indexer: {:?}", indexer);
             let result = self.download_indexer(indexer)?;
             results.push(result);
         }

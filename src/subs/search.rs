@@ -27,7 +27,7 @@ impl scrapper::ScrapperData for Indexer {
                 log::trace!(target: "Indexer", "Capture: {:?}", capture);
                 let name = capture[2].to_string();
                 let uri = format!("https://kitsunekko.net/{}", capture[1].to_string());
-                Indexer::new(name, uri)
+                Indexer::new(name.as_str(), uri.as_str())
             })
             .collect()
     }
