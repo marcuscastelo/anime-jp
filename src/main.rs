@@ -1,9 +1,10 @@
 use clap::{arg, command};
 use clap::{Parser, ValueEnum};
-use error_stack::ResultExt;
+use error_stack::{Result, ResultExt, IntoReport, Report};
 use fern::colors::{Color, ColoredLevelConfig};
 use indicatif::ProgressBar;
 use log::LevelFilter;
+use raws::search::AnimeRawData;
 
 use crate::core::download::downloader::{Destination, FileDownloader};
 use crate::core::indexer::Indexer;
@@ -24,7 +25,7 @@ enum SearchType {
     Both = 3,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(short, long, help = "The name of the anime you want to search for")]
@@ -54,7 +55,7 @@ struct Args {
     trace: bool,
 }
 
-fn setup_logger(level: LevelFilter) -> Result<(), fern::InitError> {
+fn setup_logger(level: LevelFilter) -> std::result::Result<(), fern::InitError> {
     let colors = ColoredLevelConfig::new()
         .info(Color::Green)
         .debug(Color::Cyan);
@@ -78,7 +79,30 @@ fn setup_logger(level: LevelFilter) -> Result<(), fern::InitError> {
     Ok(())
 }
 
-fn search_raws(args: &Args) {
+#[derive(Debug)]
+enum OperationError {
+    SearchError,
+    DownloadError,
+}
+
+impl std::fmt::Display for OperationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            OperationError::SearchError => write!(f, "Problem in search while doing operation"),
+            OperationError::DownloadError => write!(f, "Problem in download while doing operation"),
+        }
+    }
+}
+
+impl std::error::Error for OperationError {}
+
+
+enum OperationSuccess<Ind> {
+    DryRun(Vec<Ind>),
+    Downloaded(Vec<Ind>),
+}
+
+fn search_raws(args: &Args) -> Result<OperationSuccess<AnimeRawData>, OperationError> {
     log::info!("Searching for anime raws for: {}", args.anime_name);
     let result = raws::search::search_anime_raws(args.anime_name.as_str());
 
@@ -86,7 +110,7 @@ fn search_raws(args: &Args) {
         Ok(result) => result,
         Err(e) => {
             log::error!("\n{e:?}");
-            return;
+            return Err(Report::new(OperationError::SearchError).attach_printable(e.to_string()));
         }
     };
 
@@ -99,7 +123,7 @@ fn search_raws(args: &Args) {
 
     if args.dry_run {
         log::info!("Dry run, not downloading raws");
-        return;
+        return Ok(OperationSuccess::DryRun(indexers));
     }
 
     log::trace!("Creating downloader...");
@@ -107,7 +131,7 @@ fn search_raws(args: &Args) {
 
     log::info!("Queueing raws...");
     let pb = ProgressBar::new(indexers.len() as u64);
-    for raw_data in indexers {
+    for raw_data in &indexers {
         let dest = Destination::Default;
 
         //TODO: melhorar essa conversão (ou nem ter conversão)
@@ -143,9 +167,11 @@ fn search_raws(args: &Args) {
     }
 
     log::info!("Finished downloading raws");
+
+    Ok(OperationSuccess::Downloaded(indexers))
 }
 
-fn search_subs(args: &Args) {
+fn search_subs(args: &Args) -> Result<OperationSuccess<Indexer>, OperationError> {
     log::info!("Searching for anime subtitles for: {}", args.anime_name);
     let indexers = subs::search::fetch_best_indexers_for(args.anime_name.as_str());
 
@@ -153,11 +179,20 @@ fn search_subs(args: &Args) {
         Ok(indexers) => indexers,
         Err(e) => {
             log::error!("Failed to fetch indexers: {}", e);
-            return;
+            return Err(Report::new(OperationError::SearchError).attach_printable(e.to_string()));
         }
     };
 
-    let anime_indexer = anime_indexers.get(0).expect("No indexers found");
+    let anime_indexer = match anime_indexers.first() {
+        Some(anime_indexer) => anime_indexer,
+        None => {
+            log::error!("Subs not found for: {}", args.anime_name);
+            return Err(Report::new(OperationError::SearchError).attach_printable(
+                "Subs not found for: ".to_string() + args.anime_name.as_str(),
+            ));
+        }
+    };
+
     log::debug!("Found anime indexer: {:#?}", anime_indexer);
     log::info!("Found anime!: {:#?}", anime_indexer.name());
 
@@ -172,7 +207,7 @@ fn search_subs(args: &Args) {
 
     if args.dry_run {
         log::info!("Dry run, not downloading subs");
-        return;
+        return Ok(OperationSuccess::DryRun(subs_indexers));
     }
 
     log::trace!("Creating downloader...");
@@ -180,7 +215,7 @@ fn search_subs(args: &Args) {
 
     log::info!("Downloading subs...");
     let pb = ProgressBar::new(subs_indexers.len() as u64);
-    for subs_indexer in subs_indexers {
+    for subs_indexer in &subs_indexers {
         let result = downloader.download_indexer_to_file(&subs_indexer, &Destination::Default);
 
         match result {
@@ -193,6 +228,8 @@ fn search_subs(args: &Args) {
     }
     pb.finish();
     log::info!("Finished downloading subs");
+
+    Ok(OperationSuccess::Downloaded(subs_indexers))
 }
 
 fn main() {
@@ -219,12 +256,53 @@ fn main() {
 
     log::info!("Search type: {:#?}", args.search_type);
 
+    if !args.dry_run {
+        // Do a dry run first to fail fast if there are any errors
+        log::info!("Doing a dry run first...");
+        let args = Args {
+            dry_run: true,
+            ..args.clone()
+        };
+        if args.search_type == SearchType::Raw || args.search_type == SearchType::Both {
+            match search_raws(&args) {
+                Ok(_) => (), //TODO: reutilizar o resultado na busca final
+                Err(e) => {
+                    log::error!("\n{:?}", e);
+                    log::error!("Failed to do a dry run before the actual operation, aborting");
+                    return;
+                }
+            }
+        }
+        if args.search_type == SearchType::Subtitles || args.search_type == SearchType::Both {
+            match search_subs(&args) {
+                Ok(_) => (), //TODO: reutilizar o resultado na busca final
+                Err(e) => {
+                    log::error!("\n{:?}", e);
+                    log::error!("Failed to do a dry run before the actual operation, aborting");
+                    return;
+                }
+            }
+        }
+    }
+
     if args.search_type == SearchType::Raw || args.search_type == SearchType::Both {
-        search_raws(&args);
+        match search_raws(&args) {
+            Ok(_) => (),
+            Err(e) => {
+                log::error!("\n{:?}", e);
+                return;
+            }
+        }
     }
 
     if args.search_type == SearchType::Subtitles || args.search_type == SearchType::Both {
-        search_subs(&args);
+        match search_subs(&args) {
+            Ok(_) => (),
+            Err(e) => {
+                log::error!("\n{:?}", e);
+                return;
+            }
+        }
     }
 
     log::info!("Done!");
