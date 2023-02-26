@@ -7,6 +7,7 @@ use log::LevelFilter;
 
 use crate::core::download::downloader::{Destination, FileDownloader};
 use crate::core::indexer::Indexer;
+use crate::qbittorrent::api::torrents::TorrentList;
 use crate::raws::download::AnimeRawDownloader;
 use crate::subs::download::AnimeSubsDownloader;
 
@@ -104,7 +105,7 @@ fn search_raws(args: &Args) {
     log::trace!("Creating downloader...");
     let downloader = AnimeRawDownloader::new();
 
-    log::info!("Downloading raws...");
+    log::info!("Queueing raws...");
     let pb = ProgressBar::new(indexers.len() as u64);
     for raw_data in indexers {
         let dest = Destination::Default;
@@ -114,12 +115,33 @@ fn search_raws(args: &Args) {
         let result = downloader.download_indexer_to_file(&indexer, &dest);
 
         match result {
-            Ok(_) => log::info!("Downloaded raw: {:#?}", raw_data),
+            Ok(_) => log::info!("Enqueued raw: {:#?}", raw_data),
             Err(e) => log::error!("\n{e:?}"),
         }
     }
 
     pb.finish();
+
+    log::info!("Waiting for downloads to finish...");
+
+    let pb = ProgressBar::new(0);
+    let result = downloader.wait_for_completion(|torrents: &TorrentList| {
+        let total_bytes = torrents.0.iter().map(|t| t.size().clone() as u64).sum();
+        let total_downloaded_bytes = torrents
+            .0
+            .iter()
+            .map(|t| t.downloaded().clone() as u64)
+            .sum();
+        pb.set_length(total_bytes);
+        pb.set_position(total_downloaded_bytes);
+    });
+    pb.finish();
+
+    match result {
+        Ok(_) => log::info!("Finished downloading raws"),
+        Err(e) => log::error!("\n{e:?}"),
+    }
+
     log::info!("Finished downloading raws");
 }
 

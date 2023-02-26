@@ -4,6 +4,7 @@ use reqwest::{
 };
 
 use serde::{Deserialize, Serialize};
+use derive_getters::Getters;
 
 use error_stack::{IntoReport, Report, Result, ResultExt};
 use std::{collections::HashMap, error::Error};
@@ -12,7 +13,7 @@ use super::{QBitTorrentApi};
 
 //--------------------- Types ---------------------
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Getters)]
 pub struct Torrent {
     hash: String,
     name: String,
@@ -52,7 +53,7 @@ pub struct TorrentInfoError;
 
 impl std::fmt::Display for TorrentInfoError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Failed to add torrent")
+        write!(f, "Failed to retrieve torrent information")
     }
 }
 
@@ -162,8 +163,6 @@ impl QBitTorrentApi {
             .await
             .attach_printable("Failed to read response body")
             .change_context(TorrentAddError)?;
-
-        println!("{}", body);
 
         Ok(body)
     }
