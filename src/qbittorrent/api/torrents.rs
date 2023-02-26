@@ -18,11 +18,13 @@ pub struct Torrent {
     name: String,
     size: i64,
     state: String,
+    downloaded: i64,
+    eta: i64,
 }
 
 impl Torrent {
     pub fn finished(&self) -> bool {
-        self.state == "uploading"
+        self.state.to_uppercase().contains("UP")
     }
 }
 

@@ -9,12 +9,14 @@ use error_stack::{Result, ResultExt};
 
 pub struct QBitTorrentDownloader {
     runtime: Runtime,
+    api: api::QBitTorrentApi,
 }
 
 impl QBitTorrentDownloader {
     pub fn new() -> Self {
         QBitTorrentDownloader {
             runtime: Runtime::new().expect("Failed to create a new runtime"),
+            api: api::QBitTorrentApi::new(),
         }
     }
 }
@@ -37,10 +39,13 @@ impl FileDownloader for QBitTorrentDownloader {
 
             loop {
                 log::info!("Waiting for torrents to finish");
+
                 let info = api.info()
                     .await
                     .attach_printable("Failed to get torrent info")
                     .change_context(FileDownloaderError)?;
+
+                log::trace!("Torrent info: {:?}", info);
 
                 if !has_unfinished_torrents(info) {
                     break;
@@ -57,10 +62,10 @@ impl FileDownloader for QBitTorrentDownloader {
 
     fn download_indexer_to_file(
         &self,
-        _indexer: &Indexer,
-        _dest: &Destination,
+        indexer: &Indexer,
+        dest: &Destination,
     ) -> Result<(), FileDownloaderError> {
-        todo!();
+        self.download_uri_to_file(indexer.uri(), dest)
     }
 
     fn download_indexers_to_file(
@@ -68,7 +73,7 @@ impl FileDownloader for QBitTorrentDownloader {
         _indexers: &[Indexer],
         _dest: &Destination,
     ) -> Result<(), FileDownloaderError> {
-        todo!();
+        unimplemented!("Deprecated method, won't be implemented")
     }
 }
 

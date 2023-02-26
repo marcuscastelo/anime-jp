@@ -86,12 +86,12 @@ mod tests {
         () => {
             vec![
                 Indexer::new(
-                    "Bocchi the Rock! 2".to_string(),
-                    "https://kitsunekko.net/bocchi-the-rock-2".to_string(),
+                    "Bocchi the Rock! 2",
+                    "https://kitsunekko.net/bocchi-the-rock-2",
                 ),
                 Indexer::new(
-                    "Bocchi the Rock!".to_string(),
-                    "https://kitsunekko.net/bocchi-the-rock".to_string(),
+                    "Bocchi the Rock!",
+                    "https://kitsunekko.net/bocchi-the-rock",
                 ),
             ]
         };

@@ -13,14 +13,14 @@ use error_stack::{IntoReport, Result, ResultExt};
 
 const DEFAULT_FOLDER: &str = "subs";
 const DEFAULT_EXTENSION: &str = "srt";
-pub struct SubsDownloader {
+pub struct AnimeSubsDownloader {
     inner_downloader: Box<dyn StringDownloader>,
     default_folder: String,
 }
 
-impl SubsDownloader {
+impl AnimeSubsDownloader {
     pub fn new() -> Self {
-        SubsDownloader {
+        AnimeSubsDownloader {
             inner_downloader: Box::new(ReqwestDownloader::new()),
             default_folder: DEFAULT_FOLDER.to_string(),
         }
@@ -84,7 +84,7 @@ impl SubsDownloader {
     }
 }
 
-impl StringDownloader for SubsDownloader {
+impl StringDownloader for AnimeSubsDownloader {
     fn download_uri(&self, uri: &Uri) -> Result<String, StringDownloaderError> {
         self.inner_downloader.download_uri(uri)
     }
@@ -113,7 +113,7 @@ fn generate_random_file_basename() -> String {
     file_name
 }
 
-impl FileDownloader for SubsDownloader {
+impl FileDownloader for AnimeSubsDownloader {
     // TODO: handle .zip and other formats
     fn download_uri_to_file(
         &self,
@@ -217,8 +217,9 @@ mod tests {
         let content = "Hello world".to_string();
         let dest = Destination::Default;
         let file_basename_hint = Some("hello");
-        let subs_downloader = SubsDownloader::new();
-        subs_downloader.save(&content, &dest, file_basename_hint);
+        let subs_downloader = AnimeSubsDownloader::new();
+        let file_path = subs_downloader.create_file_path(&dest, file_basename_hint);
+        subs_downloader.save(&content, &file_path);
         //TODO: assert file exists (or use a mock)
     }
 
@@ -228,8 +229,9 @@ mod tests {
         let dest =
             Destination::GivenFolderGivenFileBasename("test".to_string(), "hello".to_string());
         let file_basename_hint = Some("hello");
-        let subs_downloader = SubsDownloader::new();
-        subs_downloader.save(&content, &dest, file_basename_hint);
+        let subs_downloader = AnimeSubsDownloader::new();
+        let file_path = subs_downloader.create_file_path(&dest, file_basename_hint);
+        subs_downloader.save(&content, &file_path);
         //TODO: assert file exists (or use a mock)
     }
 
@@ -238,8 +240,9 @@ mod tests {
         let content = "Hello world".to_string();
         let dest = Destination::GivenFolderGuessFileBasename("test".to_string());
         let file_basename_hint = None;
-        let subs_downloader = SubsDownloader::new();
-        subs_downloader.save(&content, &dest, file_basename_hint);
+        let subs_downloader = AnimeSubsDownloader::new();
+        let file_path = subs_downloader.create_file_path(&dest, file_basename_hint);
+        subs_downloader.save(&content, &file_path);
         //TODO: assert file exists (or use a mock)
     }
 }

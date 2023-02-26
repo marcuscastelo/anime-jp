@@ -2,11 +2,13 @@ use clap::{arg, command};
 use clap::{Parser, ValueEnum};
 use error_stack::ResultExt;
 use fern::colors::{Color, ColoredLevelConfig};
-use log::LevelFilter;
 use indicatif::ProgressBar;
+use log::LevelFilter;
 
 use crate::core::download::downloader::{Destination, FileDownloader};
-use crate::subs::download::SubsDownloader;
+use crate::core::indexer::Indexer;
+use crate::raws::download::AnimeRawDownloader;
+use crate::subs::download::AnimeSubsDownloader;
 
 mod core;
 mod prelude;
@@ -78,7 +80,47 @@ fn setup_logger(level: LevelFilter) -> Result<(), fern::InitError> {
 fn search_raws(args: &Args) {
     log::info!("Searching for anime raws for: {}", args.anime_name);
     let result = raws::search::search_anime_raws(args.anime_name.as_str());
-    println!("Search for anime: {:#?}", result);
+
+    let indexers = match result {
+        Ok(result) => result,
+        Err(e) => {
+            log::error!("\n{e:?}");
+            return;
+        }
+    };
+
+    log::info!(
+        "Found {} raws for anime {}",
+        indexers.len(),
+        args.anime_name
+    );
+    log::trace!("Found raws: {:#?}", indexers);
+
+    if args.dry_run {
+        log::info!("Dry run, not downloading raws");
+        return;
+    }
+
+    log::trace!("Creating downloader...");
+    let downloader = AnimeRawDownloader::new();
+
+    log::info!("Downloading raws...");
+    let pb = ProgressBar::new(indexers.len() as u64);
+    for raw_data in indexers {
+        let dest = Destination::Default;
+
+        //TODO: melhorar essa conversão (ou nem ter conversão)
+        let indexer = Indexer::new(&raw_data.anime_name, &raw_data.anime_raw_magnet);
+        let result = downloader.download_indexer_to_file(&indexer, &dest);
+
+        match result {
+            Ok(_) => log::info!("Downloaded raw: {:#?}", raw_data),
+            Err(e) => log::error!("\n{e:?}"),
+        }
+    }
+
+    pb.finish();
+    log::info!("Finished downloading raws");
 }
 
 fn search_subs(args: &Args) {
@@ -99,7 +141,11 @@ fn search_subs(args: &Args) {
 
     log::debug!("Fetching sub files for anime indexer...");
     let subs_indexers = subs::search::fetch_sub_files(anime_indexer).unwrap();
-    log::info!("Found {} subs for anime {}", subs_indexers.len(), anime_indexer.name());
+    log::info!(
+        "Found {} subs for anime {}",
+        subs_indexers.len(),
+        anime_indexer.name()
+    );
     log::trace!("Subs indexers: {:#?}", subs_indexers);
 
     if args.dry_run {
@@ -108,13 +154,12 @@ fn search_subs(args: &Args) {
     }
 
     log::trace!("Creating downloader...");
-    let downloader = SubsDownloader::new();
+    let downloader = AnimeSubsDownloader::new();
 
     log::info!("Downloading subs...");
     let pb = ProgressBar::new(subs_indexers.len() as u64);
     for subs_indexer in subs_indexers {
-        let result = downloader
-            .download_indexer_to_file(&subs_indexer, &Destination::Default);
+        let result = downloader.download_indexer_to_file(&subs_indexer, &Destination::Default);
 
         match result {
             Ok(_) => log::trace!("Downloaded subs: {}", subs_indexer.name()),
@@ -125,7 +170,7 @@ fn search_subs(args: &Args) {
         pb.inc(1);
     }
     pb.finish();
-
+    log::info!("Finished downloading subs");
 }
 
 fn main() {
@@ -161,5 +206,4 @@ fn main() {
     }
 
     log::info!("Done!");
-
 }
